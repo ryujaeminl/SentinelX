@@ -1,36 +1,36 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🏭 AI 스마트 관제 공장 시뮬레이터 (Factory Simulator)
 
-## Getting Started
+## 📌 프로그램 개요
+본 프로그램은 **"AI 스마트 안전 관제 시스템"**의 시뮬레이션을 위해 개발된 **인터랙티브 웹 기반 물리엔진 시뮬레이터**입니다. 작업자와 지게차가 돌아다니는 공장 내부를 조감도(Top-down) 시점으로 렌더링하며, 사용자는 AI 관제 시스템의 입장이 되어 공장의 물류, 안전, 비상 사태 등을 실시간으로 모니터링하고 제어할 수 있습니다.
 
-First, run the development server:
+## 🚀 주요 핵심 기능 (Core Features)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+### 1. 🚶‍♂️ 스마트 물리 & 충돌 회피 AI 시스템
+* **작업자 자율 주행 & 충돌 회피**: 각 작업자(NPC)들은 부여된 스테이션(조립/프레스/물류/유지보수)을 스스로 오가며, 기둥이나 선반(장애물)을 인지하고 부드럽게 피해가는 **AABB(Axis-Aligned Bounding Box) 기반 슬라이딩 물리 엔진**이 탑재되어 있습니다.
+* **지게차 자동 주행 & 다중 센서 (Forklift Auto-pilot)**: 물류를 나르는 지게차는 자율 주행하며, 전방/후방/측면에 장착된 3중 AI 센서가 위험 요인을 감지하면 스스로 브레이크를 밟거나 방향을 틀어 회피합니다.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. 🚨 실시간 위험 감지 및 자동 차단 (E-Stop)
+* **안전모 미착용 & 위험 구역 침범 감지**: 안전모를 쓰지 않거나 고전압 유압 프레스기(Hazard Zone)에 무단 침범한 작업자를 AI가 즉시 적발하여 **"위반자 현황 대시보드"**에 띄웁니다.
+* **쓰러짐(Fallen) 감지**: 작업자가 부상을 입고 쓰러지면, AI가 이를 인지하고 즉시 공장 전체의 가동을 중단시키는 **비상 정지(Emergency Shutdown)** 프로토콜을 가동합니다.
+* **119 자동 신고 및 화재 진압 시스템**: 화재(일반/화학) 발생 시 AI 관제소가 스스로 소방 상황실에 119 신고를 접수하고 소화 설비를 가동하는 시뮬레이션이 구축되어 있습니다.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. 📈 생산성 극대화 시스템 (Productivity AI)
+* **물류 로봇(AGV) 편대**: 지게차의 동선을 돕는 노란색 무인 운반차(AGV) 2대가 지정된 트랙을 돌며 컨베이어 벨트의 물류 잔업을 처리합니다.
+* **AI 컨베이어 동기화 (Speed Optimization)**: 작업자들의 대기 시간과 컨디션을 AI가 실시간으로 분석하여, 쉬는 작업자가 없을 때 컨베이어 벨트 가속도를 최대 2.5배까지 능동적으로 끌어올립니다.
+* **실시간 생산량 대시보드 (UPH Dashboard)**: 시뮬레이션 우측에 실시간 누적 생산량과 시간당 생산량(UPH)이 눈에 보이게 올라가는 대시보드를 제공하여, 안전과 생산성을 동시에 잡는 모습을 시각적으로 증명합니다.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🛠 사용 기술 스택 (Tech Stack)
+* **Frontend Framework**: Next.js (React)
+* **Rendering Engine**: HTML5 Canvas API (초당 60프레임 자체 물리 루프 연산)
+* **Styling**: Vanilla CSS (`globals.css`), Lucide-React (아이콘)
+* **State Management**: React `useRef`, `useState` 기반의 상태 분리 최적화 (프레임 드랍 방지)
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🎮 시뮬레이터 조작 가이드
+1. **마우스 클릭 인터랙션**: 
+   - 캔버스 내 작업자를 클릭하면 **선택된 작업자**의 정보(부서, 안전모 착용 여부 등)가 좌측 하단에 표시됩니다.
+   - 우측 패널의 [Player 개입 모드]를 활성화하면 사용자가 직접 키보드(W, A, S, D)로 캐릭터를 조종하여 시스템의 AI 센서를 시험해볼 수 있습니다.
+2. **사고 시뮬레이션 버튼**: 
+   - 좌측 컨트롤 패널에서 헬멧 벗기기, 쓰러짐 연출, 화재 발생 등을 강제로 트리거하여 AI 관제 시스템의 방어 능력을 시연할 수 있습니다.
+3. **타임라인 모니터링**: 
+   - 캔버스 하단에 시나리오 타임라인이 있어, 사고가 발생한 시간과 원격 조치 결과를 한눈에 파악할 수 있습니다.
+# SentinelX
