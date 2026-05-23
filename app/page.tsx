@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import FactorySimulator from "./components/FactorySimulator";
+import DetailModal from "./components/DetailModal";
 import { supabase } from "./lib/supabase";
 import {
   ShieldAlert,
@@ -63,6 +64,39 @@ export default function Dashboard() {
   const [currentTime, setCurrentTime] = useState("");
   const [emergency, setEmergency] = useState(false);
   const [manualEStop, setManualEStop] = useState(false);
+
+  const [selectedDetail, setSelectedDetail] = useState<string | null>(null);
+  const [weatherData, setWeatherData] = useState<{temp: number, condition: string} | null>(null);
+
+  // Fetch real-time weather
+  useEffect(() => {
+    async function fetchWeather() {
+      try {
+        const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=37.566&longitude=126.9784&current_weather=true");
+        const data = await res.json();
+        if (data && data.current_weather) {
+          const wcode = data.current_weather.weathercode;
+          let condition = "Clear";
+          if (wcode >= 1 && wcode <= 3) condition = "Partly Cloudy";
+          else if (wcode >= 45 && wcode <= 48) condition = "Foggy";
+          else if (wcode >= 51 && wcode <= 67) condition = "Rainy";
+          else if (wcode >= 71 && wcode <= 77) condition = "Snowy";
+          else if (wcode >= 80 && wcode <= 82) condition = "Showers";
+          else if (wcode >= 95) condition = "Thunderstorm";
+
+          setWeatherData({
+            temp: data.current_weather.temperature,
+            condition: condition
+          });
+        }
+      } catch (e) {
+        console.error("Failed to fetch weather", e);
+      }
+    }
+    fetchWeather();
+    const timer = setInterval(fetchWeather, 30 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const toggleEStop = () => {
     const newState = !manualEStop;
@@ -153,6 +187,14 @@ export default function Dashboard() {
 
   return (
     <div className={`dashboard-container ${emergency ? "emergency-active" : ""}`}>
+      <DetailModal
+        selectedDetail={selectedDetail}
+        onClose={() => setSelectedDetail(null)}
+        logs={logs}
+        tempData={tempData}
+        emergency={emergency}
+        weatherData={weatherData}
+      />
       {/* SIDEBAR NAVIGATION */}
       <aside className={`sidebar ${isSidebarOpen ? "" : "sidebar-closed"}`}>
         <div className="sidebar-header">
@@ -272,8 +314,8 @@ export default function Dashboard() {
         {activeTab === "command" && (
           <div className="monitor-grid">
             {/* Left: AI Risk Prediction & Log Alerts */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px", overflowY: "auto" }}>
-              <div className="panel" style={{ flexShrink: 0 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px", minHeight: "600px" }}>
+              <div className="panel hover-panel" style={{ flexShrink: 0, cursor: "pointer" }} onClick={() => setSelectedDetail("risk")}>
                 <div className="panel-title">
                   <Activity size={14} />
                   <span>AI Risk Prediction</span>
@@ -329,7 +371,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="panel" style={{ flex: 1 }}>
+              <div className="panel hover-panel" style={{ flex: 1, cursor: "pointer" }} onClick={() => setSelectedDetail("logs")}>
                 <div className="panel-title">
                   <ShieldAlert size={14} />
                   <span>Real-Time Logs / Events</span>
@@ -369,7 +411,7 @@ export default function Dashboard() {
 
             {/* Center: Live Twin Flat/3D Map View (d_3.png center) */}
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div className="panel" style={{ flex: 1, padding: 0, overflow: "hidden", border: `1px solid ${emergency ? "var(--color-red)" : "var(--bg-panel-border)"}` }}>
+              <div className="panel hover-panel" style={{ flex: 1, padding: 0, overflow: "hidden", border: `1px solid ${emergency ? "var(--color-red)" : "var(--bg-panel-border)"}`, cursor: "pointer" }} onClick={() => setSelectedDetail("map")}>
                 {/* Visual Header */}
                 <div style={{ position: "absolute", top: "16px", left: "16px", zIndex: 30, display: "flex", gap: "10px", alignItems: "center" }}>
                   <span className="sidebar-status-dot"></span>
@@ -379,7 +421,7 @@ export default function Dashboard() {
                 <div className="scan-line" />
 
                 {/* Main 3D Twin image from design/t_0.png */}
-                <div style={{ width: "100%", height: "100%", position: "relative", overflow: "hidden", background: "#020409" }}>
+                <div style={{ flex: 1, width: "100%", minHeight: "450px", position: "relative", overflow: "hidden", background: "#020409" }}>
                   <img 
                     src="/design/t_0.png" 
                     alt="Digital Twin Map" 
@@ -478,7 +520,7 @@ export default function Dashboard() {
 
               {/* Bottom equipment cards (d_3.png bottom row) */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", flexShrink: 0 }}>
-                <div className="panel" style={{ padding: "12px 16px" }}>
+                <div className="panel hover-panel" style={{ padding: "12px 16px", cursor: "pointer" }} onClick={() => setSelectedDetail("equipment")}>
                   <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", fontWeight: "bold", textTransform: "uppercase" }}>AGV FLEET A</div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "6px" }}>
                     <span style={{ fontSize: "0.85rem", fontWeight: "bold" }}>FLEET SEC_A</span>
@@ -488,7 +530,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 
-                <div className="panel" style={{ padding: "12px 16px" }}>
+                <div className="panel hover-panel" style={{ padding: "12px 16px", cursor: "pointer" }} onClick={() => setSelectedDetail("equipment")}>
                   <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", fontWeight: "bold", textTransform: "uppercase" }}>ROBOTIC ARM 3</div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "6px" }}>
                     <span style={{ fontSize: "0.85rem", fontWeight: "bold" }}>ASSY_ARM_33</span>
@@ -498,7 +540,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <div className="panel" style={{ padding: "12px 16px" }}>
+                <div className="panel hover-panel" style={{ padding: "12px 16px", cursor: "pointer" }} onClick={() => setSelectedDetail("equipment")}>
                   <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", fontWeight: "bold", textTransform: "uppercase" }}>GANTRY CRANE</div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "6px" }}>
                     <span style={{ fontSize: "0.85rem", fontWeight: "bold" }}>LOAD_CRANE_0</span>
@@ -506,7 +548,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <div className="panel" style={{ padding: "12px 16px" }}>
+                <div className="panel hover-panel" style={{ padding: "12px 16px", cursor: "pointer" }} onClick={() => setSelectedDetail("equipment")}>
                   <div style={{ fontSize: "0.65rem", color: "var(--text-muted)", fontWeight: "bold", textTransform: "uppercase" }}>MAIN CONVEYOR</div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "6px" }}>
                     <span style={{ fontSize: "0.85rem", fontWeight: "bold" }}>CONV_MAIN_LN</span>
@@ -520,7 +562,7 @@ export default function Dashboard() {
 
             {/* Right: AI Vision Matrix (d_3.png right & t_3.png) */}
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div className="panel" style={{ flex: 1, padding: "14px" }}>
+              <div className="panel hover-panel" style={{ flex: 1, padding: "14px", cursor: "pointer" }} onClick={() => setSelectedDetail("vision")}>
                 <div className="panel-title">
                   <Camera size={14} />
                   <span>AI Vision Matrix</span>
@@ -533,7 +575,8 @@ export default function Dashboard() {
                   borderRadius: "6px", 
                   overflow: "hidden", 
                   border: "1px solid var(--bg-panel-border)",
-                  background: "#010102"
+                  background: "#010102",
+                  minHeight: "250px"
                 }}>
                   <img 
                     src="/design/t_3.png" 
@@ -603,10 +646,14 @@ export default function Dashboard() {
               </div>
 
               {/* Thermal sensor tracker timeline */}
-              <div className="panel" style={{ height: "180px", flexShrink: 0 }}>
+              <div className="panel hover-panel" style={{ height: "180px", flexShrink: 0, cursor: "pointer" }} onClick={() => setSelectedDetail("thermal")}>
                 <div className="panel-title">
                   <Thermometer size={14} />
-                  <span>Thermal Sensor Trend (Zone-C)</span>
+                  <span>Outside Temp & Thermal Trend</span>
+                </div>
+                <div style={{ position: "absolute", top: "14px", right: "14px", fontSize: "0.85rem", color: "var(--color-cyan)", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span>Outside:</span>
+                  <span className="orbitron">{weatherData ? `${weatherData.temp}°C` : "--"}</span>
                 </div>
                 <div style={{ flex: 1, minHeight: "100px" }}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -626,7 +673,7 @@ export default function Dashboard() {
 
         {/* 2. SCENARIOS SIMULATOR (d_1.png / d_2.png) */}
         {activeTab === "scenarios" && (
-          <div style={{ flex: 1, minHeight: "calc(100vh - 60px)", overflowY: "auto" }}>
+          <div style={{ flex: 1, minHeight: "100%", overflowY: "visible" }}>
             <FactorySimulator 
               emergency={emergency}
               setEmergency={setEmergency}

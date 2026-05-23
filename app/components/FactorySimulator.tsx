@@ -226,7 +226,7 @@ export default function FactorySimulator({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
   const [mode, setMode] = useState<ControlMode>("forklift");
-  const [selectedWorkerId, setSelectedWorkerId] = useState<string>("p1");
+  const [selectedWorkerId, setSelectedWorkerId] = useState<string>("npc1");
   const [isLeftPanelExpanded, setIsLeftPanelExpanded] = useState<boolean>(true);
   const [isRightPanelExpanded, setIsRightPanelExpanded] = useState<boolean>(true);
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
@@ -244,6 +244,12 @@ export default function FactorySimulator({
   const [dashOffset, setDashOffset] = useState({ x: 0, y: 0 });
   const [isDraggingDash, setIsDraggingDash] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0, initOffsetX: 0, initOffsetY: 0 });
+
+  // AI Optimization States
+  const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
+  const [hasOptimized, setHasOptimized] = useState<boolean>(false);
+  const [optimizedPaths, setOptimizedPaths] = useState<{x: number, y: number}[]>([]);
+  const originalLayoutRef = useRef<{ obstacles: Obstacle[], waypoints: {x: number, y: number}[] } | null>(null);
 
   // Hardhat & Fallen states for the player worker
   const [playerHelmet, setPlayerHelmet] = useState(true);
@@ -395,6 +401,76 @@ export default function FactorySimulator({
         sirenGain = null;
       }
     } catch (e) {}
+  };
+
+  // AI Optimization Logic
+  const runAiOptimization = () => {
+    setIsOptimizing(true);
+    addLog("warning", "🧠 [AI 안전 최적화] 지게차 주행 경로 및 구조물 배치 최적화 시뮬레이션을 시작합니다...");
+    playWarningBeep(800, 0.2, 0.05);
+    
+    // Save original state if not saved
+    if (!originalLayoutRef.current) {
+        originalLayoutRef.current = {
+            obstacles: JSON.parse(JSON.stringify(gameState.current.obstacles)),
+            waypoints: JSON.parse(JSON.stringify(FORKLIFT_WAYPOINTS))
+        };
+    }
+
+    setTimeout(() => {
+        // 1. Structure Optimization (Facility Layout Problem Simulation)
+        // Move obstacles slightly away from the center or hazard zones
+        const newObstacles = JSON.parse(JSON.stringify(originalLayoutRef.current!.obstacles));
+        newObstacles.forEach((obs: any) => {
+            if (obs.label.includes("랙") || obs.label.includes("적재소")) {
+                if (obs.x < CANVAS_WIDTH / 2) {
+                   obs.x = Math.max(30, obs.x - 25); // Move left, widening path
+                } else {
+                   obs.x = Math.min(CANVAS_WIDTH - obs.w - 30, obs.x + 25); // Move right
+                }
+            }
+        });
+        gameState.current.obstacles = newObstacles;
+
+        // 2. A* Pathfinding Simulation (Dynamic Routing avoiding hazards)
+        // Creating a safer path for the forklift
+        const newWaypoints = [
+            { x: 450, y: 150 }, // Start
+            { x: 580, y: 150 }, // Go right, wider turn
+            { x: 580, y: 260 }, // Go down safely
+            { x: 450, y: 260 }, // Go left
+            { x: 280, y: 260 }, // Go more left safely
+            { x: 280, y: 150 }, // Go up safely
+            { x: 450, y: 150 }  // Back to start
+        ];
+        
+        FORKLIFT_WAYPOINTS.length = 0;
+        newWaypoints.forEach(wp => FORKLIFT_WAYPOINTS.push(wp));
+        gameState.current.forklift.targetWaypointIdx = 0;
+        
+        setOptimizedPaths(newWaypoints);
+        setIsOptimizing(false);
+        setHasOptimized(true);
+
+        setSpeedFactor(Math.max(0.8, speedFactor - 0.15)); // Safety improved
+        
+        addLog("safe", "✅ [최적화 완료] 구조물 재배치 및 A* 알고리즘 기반 안전 주행 경로가 적용되었습니다.");
+        playWarningBeep(1200, 0.3, 0.05);
+    }, 2500); // 2.5s loading simulation
+  };
+
+  const undoOptimization = () => {
+    if (originalLayoutRef.current) {
+        gameState.current.obstacles = JSON.parse(JSON.stringify(originalLayoutRef.current.obstacles));
+        FORKLIFT_WAYPOINTS.length = 0;
+        originalLayoutRef.current.waypoints.forEach(wp => FORKLIFT_WAYPOINTS.push(wp));
+        
+        setOptimizedPaths([]);
+        setHasOptimized(false);
+        
+        addLog("warning", "🔄 [최적화 복구] 구조물 배치 및 주행 경로가 이전 상태로 복구되었습니다.");
+        playWarningBeep(600, 0.15, 0.05);
+    }
   };
 
   // Mutable Game State
@@ -1497,6 +1573,44 @@ export default function FactorySimulator({
       ctx.strokeRect(435, 20, 30, CANVAS_HEIGHT - 40);
       ctx.setLineDash([]);
 
+      // Draw optimized safe route if available
+      if (optimizedPaths.length > 0) {
+        ctx.beginPath();
+        ctx.moveTo(optimizedPaths[0].x, optimizedPaths[0].y);
+        for (let i = 1; i < optimizedPaths.length; i++) {
+            ctx.lineTo(optimizedPaths[i].x, optimizedPaths[i].y);
+        }
+        ctx.strokeStyle = "rgba(16, 185, 129, 0.8)"; // Green
+        ctx.lineWidth = 3;
+        ctx.setLineDash([8, 6]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        // Draw waypoint nodes
+        optimizedPaths.forEach(wp => {
+            ctx.beginPath();
+            ctx.arc(wp.x, wp.y, 4, 0, Math.PI * 2);
+            ctx.fillStyle = "var(--color-green)";
+            ctx.fill();
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        });
+
+        // Add a pulsing glow around the path to make it obvious
+        ctx.shadowColor = "var(--color-green)";
+        ctx.shadowBlur = 10 + Math.sin(Date.now() / 200) * 5;
+        ctx.strokeStyle = "rgba(16, 185, 129, 0.3)";
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(optimizedPaths[0].x, optimizedPaths[0].y);
+        for (let i = 1; i < optimizedPaths.length; i++) {
+            ctx.lineTo(optimizedPaths[i].x, optimizedPaths[i].y);
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
       // 3. Draw Forklift charging bay
       ctx.fillStyle = "rgba(245, 158, 11, 0.04)";
       ctx.fillRect(25, 25, 50, 50);
@@ -2269,7 +2383,7 @@ export default function FactorySimulator({
             >
               {gameState.current.workers.map(w => (
                 <option key={w.id} value={w.id} style={{ background: "#0f172a", color: "#f8fafc" }}>
-                  {w.name} {w.id === "p1" ? "(기본 플레이어)" : ""}
+                  {w.name} {w.id === "npc1" ? "(기본 플레이어)" : ""}
                 </option>
               ))}
             </select>
@@ -2524,6 +2638,51 @@ export default function FactorySimulator({
             <Flame size={13} />
             <span style={{ fontSize: "0.72rem" }}>화학 가스 누출 화재 (열화상 전용)</span>
           </button>
+
+          {/* AI Optimization Triggers */}
+          <div style={{ marginTop: "8px", borderTop: "1px solid var(--bg-panel-border)", paddingTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+              <Cpu size={14} color="var(--color-cyan)" />
+              <span style={{ fontSize: "0.72rem", color: "var(--color-cyan)", fontWeight: "bold" }}>강화학습 기반 시뮬레이션 최적화</span>
+            </div>
+            
+            <button
+              onClick={runAiOptimization}
+              disabled={isOptimizing || hasOptimized}
+              className="btn hover:border-cyan-500 hover:scale-[1.02]"
+              style={{ 
+                justifyContent: "center", 
+                border: `1.5px solid ${isOptimizing ? "var(--text-muted)" : "var(--color-cyan)"}`,
+                color: isOptimizing ? "var(--text-muted)" : "var(--color-cyan)",
+                background: isOptimizing ? "rgba(255,255,255,0.05)" : "rgba(6, 182, 212, 0.1)",
+                padding: "8px 10px",
+                opacity: (isOptimizing || hasOptimized) ? 0.5 : 1,
+                cursor: (isOptimizing || hasOptimized) ? "not-allowed" : "pointer"
+              }}
+            >
+              {isOptimizing ? (
+                <><RotateCcw size={13} className="animate-spin" /> <span style={{ fontSize: "0.72rem" }}>A* 경로 탐색 및 구조물 재배치 중...</span></>
+              ) : (
+                <><Play size={13} /> <span style={{ fontSize: "0.72rem" }}>안전 경로 및 구조물 최적화 실행</span></>
+              )}
+            </button>
+
+            {hasOptimized && (
+              <button
+                onClick={undoOptimization}
+                className="btn hover:border-yellow-500 hover:scale-[1.02]"
+                style={{ 
+                  justifyContent: "center", 
+                  border: "1.5px solid var(--color-yellow)",
+                  color: "var(--color-yellow)",
+                  background: "rgba(234, 179, 8, 0.1)",
+                  padding: "8px 10px"
+                }}
+              >
+                <RotateCcw size={13} /> <span style={{ fontSize: "0.72rem" }}>이전 상태로 복구 (Undo)</span>
+              </button>
+            )}
+          </div>
           
           {/* Fire 119 Call Simulation & Extinguish */}
           {fireType !== "none" && (
@@ -2593,8 +2752,45 @@ export default function FactorySimulator({
       <div style={{ display: "flex", flexDirection: "column", gap: "16px", flex: 1 }}>
         
         {/* Canvas panel */}
-        <div className="panel" style={{ height: "620px", display: "flex", flexDirection: "column", padding: 0, overflow: "hidden", border: `1px solid ${emergency ? "var(--color-red)" : "var(--bg-panel-border)"}` }}>
+        <div className="panel" style={{ height: "620px", display: "flex", flexDirection: "column", padding: 0, overflow: "hidden", border: `1px solid ${emergency ? "var(--color-red)" : "var(--bg-panel-border)"}`, position: "relative" }}>
           
+          {/* AI Optimizing Overlay */}
+          {isOptimizing && (
+            <div style={{
+              position: "absolute",
+              top: 0, left: 0, right: 0, bottom: 0,
+              background: "rgba(0, 0, 0, 0.6)",
+              zIndex: 50,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              backdropFilter: "blur(2px)"
+            }}>
+              <div style={{
+                background: "rgba(15, 23, 42, 0.9)",
+                border: "2px solid var(--color-cyan)",
+                borderRadius: "8px",
+                padding: "20px 40px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "12px",
+                boxShadow: "0 0 30px rgba(6, 182, 212, 0.4)"
+              }}>
+                <Cpu size={32} className="animate-pulse" color="var(--color-cyan)" />
+                <h3 style={{ color: "var(--color-cyan)", margin: 0, fontSize: "1.1rem" }}>AI 시뮬레이션 최적화 중...</h3>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textAlign: "center", lineHeight: "1.5" }}>
+                  A* 알고리즘 기반 우회 경로 탐색<br/>
+                  휴리스틱 기반 구조물(랙) 재배치 연산 중
+                </div>
+                <div style={{ width: "200px", height: "4px", background: "rgba(255,255,255,0.1)", borderRadius: "2px", overflow: "hidden", marginTop: "8px" }}>
+                  <div style={{ width: "100%", height: "100%", background: "var(--color-cyan)", animation: "slide-right 1s ease-in-out infinite alternate" }} />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Live HUD Header */}
           <div style={{ position: "absolute", top: "12px", left: "12px", right: "12px", zIndex: 20, display: "flex", justifyContent: "space-between", pointerEvents: "none" }}>
             <div style={{ display: "flex", gap: "8px" }}>
