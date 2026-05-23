@@ -200,6 +200,7 @@ interface FactorySimulatorProps {
   setPayloadWeight: (pw: number) => void;
   tempData: any[];
   setTempData: React.Dispatch<React.SetStateAction<any[]>>;
+  setThreatLevel?: (level: number) => void;
 }
 
 // Web Audio API Global References (instantiated inside component on user interaction)
@@ -221,7 +222,8 @@ export default function FactorySimulator({
   payloadWeight,
   setPayloadWeight,
   tempData,
-  setTempData
+  setTempData,
+  setThreatLevel
 }: FactorySimulatorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
@@ -249,6 +251,7 @@ export default function FactorySimulator({
   const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
   const [hasOptimized, setHasOptimized] = useState<boolean>(false);
   const [optimizedPaths, setOptimizedPaths] = useState<{x: number, y: number}[]>([]);
+  const [learnedHazards, setLearnedHazards] = useState<{x: number, y: number, r: number, time: string}[]>([]);
   const originalLayoutRef = useRef<{ obstacles: Obstacle[], waypoints: {x: number, y: number}[] } | null>(null);
 
   // Hardhat & Fallen states for the player worker
@@ -457,6 +460,54 @@ export default function FactorySimulator({
         addLog("safe", "✅ [최적화 완료] 구조물 재배치 및 A* 알고리즘 기반 안전 주행 경로가 적용되었습니다.");
         playWarningBeep(1200, 0.3, 0.05);
     }, 2500); // 2.5s loading simulation
+  };
+
+  const triggerSelfLearning = (hx: number, hy: number) => {
+    setIsOptimizing(true);
+    addLog("warning", "🧠 [AI 자율 학습] 사고/위험 구역을 감지하여 자율 회피 경로를 생성합니다...");
+    playWarningBeep(800, 0.2, 0.05);
+
+    const newHazard = { x: hx, y: hy, r: 60, time: new Date().toLocaleTimeString('ko-KR', { hour12: false }) };
+    setLearnedHazards(prev => [...prev, newHazard]);
+
+    setTimeout(() => {
+        // Shift existing waypoints away from all learned hazards
+        const newWaypoints = [...FORKLIFT_WAYPOINTS];
+        
+        newWaypoints.forEach(wp => {
+            const dx = wp.x - hx;
+            const dy = wp.y - hy;
+            const dist = Math.sqrt(dx*dx + dy*dy) || 1; // Prevent divide by zero
+            if (dist < 80) { // Too close to hazard
+                // Push it outward
+                const pushDist = 80 - dist + 30;
+                wp.x += (dx/dist) * pushDist;
+                wp.y += (dy/dist) * pushDist;
+                
+                // Bounds check
+                wp.x = Math.max(50, Math.min(CANVAS_WIDTH - 50, wp.x));
+                wp.y = Math.max(50, Math.min(CANVAS_HEIGHT - 50, wp.y));
+            }
+        });
+
+        FORKLIFT_WAYPOINTS.length = 0;
+        newWaypoints.forEach(wp => FORKLIFT_WAYPOINTS.push(wp));
+        gameState.current.forklift.targetWaypointIdx = 0;
+        
+        setOptimizedPaths(newWaypoints);
+        setIsOptimizing(false);
+        setHasOptimized(true);
+        
+        addLog("safe", "✅ [AI 자율 학습 완료] 새로운 회피 경로가 생성되어 실시간 우회 주행을 시작합니다.");
+        playWarningBeep(1200, 0.3, 0.05);
+        
+        // Auto-resume after learning if we are in emergency
+        if (emergencyRef.current) {
+            setEmergency(false);
+            emergencyRef.current = false;
+        }
+        gameState.current.forklift.speed = 0;
+    }, 3000);
   };
 
   const undoOptimization = () => {
@@ -950,6 +1001,12 @@ export default function FactorySimulator({
             forklift.speed -= 0.15;
             if (forklift.speed < -2.5) forklift.speed = -2.5;
             // Steering is locked while reversing to exit cleanly
+
+            if (!state.accidentCooldown) {
+               state.accidentCooldown = true;
+               triggerSelfLearning(forklift.x, forklift.y);
+               setTimeout(() => { state.accidentCooldown = false; }, 4000);
+            }
          } else {
             if (forklift.waitTimer !== undefined && forklift.waitTimer > 0) {
                forklift.waitTimer--;
@@ -1205,6 +1262,8 @@ export default function FactorySimulator({
         emergencyRef.current = true;
         forklift.speed = 0;
 
+        triggerSelfLearning(forklift.x, forklift.y);
+
         setAccidentDetails({
           title: newLog.description,
           type: "crash",
@@ -1234,6 +1293,10 @@ export default function FactorySimulator({
 
       if (frames % 8 === 0) {
         setAiStatus(newAiStatus);
+      }
+
+      if (frames % 15 === 0 && setThreatLevel) {
+        setThreatLevel(getInjuryLikelihood());
       }
 
       // 4. Smooth Collision Resolution (Obstacles & Walls)
@@ -1572,6 +1635,23 @@ export default function FactorySimulator({
       ctx.strokeRect(20, 135, CANVAS_WIDTH - 40, 30);
       ctx.strokeRect(435, 20, 30, CANVAS_HEIGHT - 40);
       ctx.setLineDash([]);
+
+      // Draw learned hazards (AI Memory)
+      learnedHazards.forEach(hz => {
+          ctx.beginPath();
+          ctx.arc(hz.x, hz.y, hz.r, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(239, 68, 68, 0.15)"; // Red with opacity
+          ctx.fill();
+          ctx.strokeStyle = "rgba(239, 68, 68, 0.8)";
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 4]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          
+          ctx.font = "bold 9px sans-serif";
+          ctx.fillStyle = "#ef4444";
+          ctx.fillText("🧠 AI 학습: 회피 설정됨", hz.x - 38, hz.y);
+      });
 
       // Draw optimized safe route if available
       if (optimizedPaths.length > 0) {

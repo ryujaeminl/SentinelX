@@ -30,6 +30,7 @@ interface DetailModalProps {
   tempData: any[];
   emergency: boolean;
   weatherData: { temp: number; condition: string } | null;
+  threatLevel: number;
 }
 
 export default function DetailModal({
@@ -38,7 +39,8 @@ export default function DetailModal({
   logs,
   tempData,
   emergency,
-  weatherData
+  weatherData,
+  threatLevel
 }: DetailModalProps) {
   if (!selectedDetail) return null;
 
@@ -95,21 +97,21 @@ export default function DetailModal({
                 <h3 style={{ color: "var(--text-main)", marginBottom: "12px" }}>Current Risk Factors</h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                   <div className="card-item">
-                    <div style={{ display: "flex", justifyContent: "space-between", color: "var(--color-red)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", color: threatLevel > 80 ? "var(--color-red)" : "var(--color-yellow)" }}>
                       <span>Collision Threat</span>
-                      <span>High (88%)</span>
+                      <span>{threatLevel > 80 ? "High" : "Elevated"} ({threatLevel}%)</span>
                     </div>
                     <div style={{ width: "100%", background: "rgba(255,255,255,0.1)", height: "6px", marginTop: "8px", borderRadius: "3px" }}>
-                      <div style={{ width: "88%", background: "var(--color-red)", height: "100%", borderRadius: "3px" }}></div>
+                      <div style={{ width: `${threatLevel}%`, background: threatLevel > 80 ? "var(--color-red)" : "var(--color-yellow)", height: "100%", borderRadius: "3px" }}></div>
                     </div>
                   </div>
                   <div className="card-item">
                     <div style={{ display: "flex", justifyContent: "space-between", color: "var(--color-yellow)" }}>
                       <span>Thermal Anomaly</span>
-                      <span>Elevated (65%)</span>
+                      <span>{emergency ? "Elevated (65%)" : "Nominal (25%)"}</span>
                     </div>
                     <div style={{ width: "100%", background: "rgba(255,255,255,0.1)", height: "6px", marginTop: "8px", borderRadius: "3px" }}>
-                      <div style={{ width: "65%", background: "var(--color-yellow)", height: "100%", borderRadius: "3px" }}></div>
+                      <div style={{ width: emergency ? "65%" : "25%", background: "var(--color-yellow)", height: "100%", borderRadius: "3px" }}></div>
                     </div>
                   </div>
                   <div className="card-item">

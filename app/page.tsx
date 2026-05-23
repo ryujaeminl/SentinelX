@@ -67,6 +67,7 @@ export default function Dashboard() {
 
   const [selectedDetail, setSelectedDetail] = useState<string | null>(null);
   const [weatherData, setWeatherData] = useState<{temp: number, condition: string} | null>(null);
+  const [threatLevel, setThreatLevel] = useState<number>(12);
 
   // Fetch real-time weather
   useEffect(() => {
@@ -194,6 +195,7 @@ export default function Dashboard() {
         tempData={tempData}
         emergency={emergency}
         weatherData={weatherData}
+        threatLevel={threatLevel}
       />
       {/* SIDEBAR NAVIGATION */}
       <aside className={`sidebar ${isSidebarOpen ? "" : "sidebar-closed"}`}>
@@ -333,7 +335,7 @@ export default function Dashboard() {
                       stroke={emergency ? "var(--color-red)" : "var(--color-yellow)"} 
                       strokeWidth="6" 
                       strokeDasharray="251.2" 
-                      strokeDashoffset={251.2 - (251.2 * (emergency ? 94.8 : 88)) / 100}
+                      strokeDashoffset={251.2 - (251.2 * threatLevel) / 100}
                       strokeLinecap="round"
                       style={{
                         transform: "rotate(-90deg)",
@@ -350,7 +352,7 @@ export default function Dashboard() {
                       className="orbitron" 
                       style={{ fontSize: "1.4rem", fontWeight: "bold" }}
                     >
-                      {emergency ? "94.8" : "88"}
+                      {threatLevel}
                     </text>
                     <text 
                       x="50" 
@@ -688,6 +690,7 @@ export default function Dashboard() {
               setPayloadWeight={setPayloadWeight}
               tempData={tempData}
               setTempData={setTempData}
+              setThreatLevel={setThreatLevel}
             />
           </div>
         )}
@@ -946,9 +949,11 @@ export default function Dashboard() {
                 <div>
                   <h4 style={{ color: "var(--color-cyan)", marginBottom: "6px", fontSize: "0.85rem" }}>■ 특이 사항 및 조치 사항</h4>
                   <ul style={{ color: "var(--text-muted)", paddingLeft: "16px", display: "flex", flexDirection: "column", gap: "4px", listStyleType: "none" }}>
-                    <li>• <strong>10:41</strong> : C구역 열화상 센서의 일시적인 이상 온도 감지 (65°C) → 냉각기 긴급 체크 및 정상 가동 조치.</li>
-                    <li>• <strong>10:42</strong> : 안전모 미착용 작업자 AI 카메라 감지 → 대시보드 경보 및 작업장 내 음성 안내로 보완 조치.</li>
-                    <li>• <strong>10:45</strong> : 지게차 02 접근 경보 및 비상 제동 제어 개입 완료.</li>
+                    {logs.length > 0 ? logs.slice(0, 5).map((log, i) => (
+                      <li key={i}>
+                        • <strong>{log.time}</strong> : {log.msg} → {log.type === "danger" ? "시스템 긴급 제어 및 안전팀 호출 완료" : log.type === "warning" ? "안전 경보 송출 및 자동 감속 개입" : "정상 모니터링 기록 유지"}
+                      </li>
+                    )) : <li>• 특이사항 없음</li>}
                   </ul>
                 </div>
               </div>
